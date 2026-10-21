@@ -1,0 +1,23 @@
+.env
+.env.local
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+*.log
+.DS_Store
+*.zip
+
+terraform/terraform.tfvars
+terraform/.terraform/
+terraform/*.tfstate*
+
+# Large source datasets
+data/raw/
+data/interim/
+data/processed/pump_sensor/
+
+# Local tooling and scratch databases
+.claude/
+data/replay_run.db
