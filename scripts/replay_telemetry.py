@@ -211,7 +211,7 @@ def main() -> None:
     episode_filter = {episode.strip() for episode in args.episodes.split(",") if episode.strip()}
     datasets = load_datasets(args.minutes_per_tick, episode_filter)
     if not datasets:
-        sys.exit("No replay datasets available; see backend/README.md (Real-Data Replay).")
+        sys.exit("No replay datasets available; see README.md (Real-Data Replay).")
     streams = AssetStreams(datasets)
     print(
         f"Replaying to {'every registered asset' if discover_assets else ', '.join(fixed_assets)}: "

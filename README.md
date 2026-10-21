@@ -1,18 +1,17 @@
 # Auravance Backend
 
-Demo-first backend scaffold for the Auravance predictive maintenance platform.
+FastAPI service, ML pipelines, and RAG engine for the Auravance industrial predictive maintenance platform.
+
+The React dashboard lives in the sibling repo `auravance-frontend`. This API already allows any browser origin (`CORS *`); start this service on port 8000 and the frontend Vite proxy will reach it.
 
 ## Run
 
 ```bash
-pip install -e backend
+pip install -e .
+uvicorn app.main:app --reload
 ```
 
-Then start the API:
-
-```bash
-uvicorn app.main:app --app-dir backend --reload
-```
+Copy `.env.example` to `.env` and set `OPENAI_API_KEY` if you want live RAG. The dashboard repo talks to `/api/v1` on this process.
 
 ## Demo Flow
 
@@ -23,7 +22,7 @@ uvicorn app.main:app --app-dir backend --reload
 ## Simulator
 
 ```bash
-python backend/scripts/simulate_telemetry.py
+python scripts/simulate_telemetry.py
 ```
 
 ## Real-Data Replay
@@ -38,7 +37,7 @@ live. Every registered asset gets the dataset that matches its type:
 | motor, drive, conveyor | NASA/IMS bearing run-to-failure rig (shaft driven by an AC motor at 2000 rpm), a 1-s vibration snapshot every 10 min | 3 bearing failures | real: worst-bearing vibration RMS in g |
 
 ```bash
-python backend/scripts/replay_telemetry.py
+python scripts/replay_telemetry.py
 ```
 
 - **Every registered asset streams by default** (`--assets all`). The replay reads
@@ -65,12 +64,12 @@ To rebuild them from the original sources:
 
 ```bash
 # Pump: needs the Kaggle CSV processed by prepare_datasets.py
-python backend/scripts/build_replay_dataset.py
+python scripts/build_replay_dataset.py
 # Compressor: download MetroPT-3 (208 MB zip) from UCI into data/raw/MetroPT3/
-python backend/scripts/prepare_metropt.py
+python scripts/prepare_metropt.py
 # Motor: the IMS .rar archives in data/interim/ims_bearings/extracted/, needs 7-Zip.
 # Extracts one test at a time (6.5 GB unpacked in total), caches features per test.
-python backend/scripts/prepare_ims.py
+python scripts/prepare_ims.py
 ```
 
 ### Pump notes
@@ -105,7 +104,7 @@ for `AURAVANCE_ALERT_COOLDOWN_SECONDS` (default 300) unless the severity changes
 Place raw datasets under:
 
 ```text
-backend/data/raw/
+data/raw/
   AI4I_2020_Predictive_Maintenance/
   NASA_C_MAPPS_Turbofan_Engine_Degradation_Simulation/
   IMS_Bearings/
@@ -137,7 +136,7 @@ GET /api/v1/datasets
 
 The OpenAI-backed RAG pipeline expects the API key to be stored as an environment variable and never hardcoded in source.
 
-If you already keep secrets in `backend/.env`, the backend now loads that file automatically at startup and during knowledge indexing.
+If you already keep secrets in `.env`, the backend loads that file automatically at startup and during knowledge indexing.
 
 On Windows PowerShell, set it like this for your current shell:
 
@@ -161,7 +160,7 @@ $env:AURAVANCE_RAG_EMBEDDING_MODEL="text-embedding-3-small"
 Place manuals under:
 
 ```text
-backend/knowledge/raw/
+knowledge/raw/
   valeo/
     m1.pdf
     m2.pdf
@@ -178,7 +177,7 @@ python scripts/prepare_knowledge.py
 What the script does:
 
 - scans `knowledge/raw/**/*.pdf`
-- scans built-in markdown guides under `backend/knowledge/*.md`
+- scans built-in markdown guides under `knowledge/*.md`
 - extracts PDF text
 - writes normalized text files to `knowledge/processed`
 - writes JSONL chunks to `knowledge/chunks`
@@ -242,12 +241,12 @@ Status endpoint behavior:
 
 The anomaly baseline trains on normal operating records from the processed pump dataset and evaluates
 against `RECOVERING` and `BROKEN` records. It writes a versioned model plus readable metadata under
-`backend/artifacts/models`.
+`artifacts/models`.
 
 From the repository root:
 
 ```powershell
-.\.venv\Scripts\python.exe backend\scripts\train_anomaly_model.py
+.\.venv\Scripts\python.exe scripts\train_anomaly_model.py
 ```
 
 Restart the API after training. Authenticated users can verify the active model at:
@@ -266,8 +265,8 @@ anomaly model's feature transform, so all three models see the same features tha
 live telemetry produces. Train from the repository root:
 
 ```powershell
-.\.venv\Scripts\python.exe backend\scripts\train_failure_model.py
-.\.venv\Scripts\python.exe backend\scripts\train_rul_model.py
+.\.venv\Scripts\python.exe scripts\train_failure_model.py
+.\.venv\Scripts\python.exe scripts\train_rul_model.py
 ```
 
 Restart the API after training. Check all active prediction models at:
@@ -301,8 +300,8 @@ machine type's real dataset in real units. Scoring picks the set from the asset 
 (`app/services/model_profiles.py`), and `GET /predictions/models/status` lists all of them.
 
 ```bash
-python backend/scripts/train_profile_models.py compressor
-python backend/scripts/train_profile_models.py motor
+python scripts/train_profile_models.py compressor
+python scripts/train_profile_models.py motor
 ```
 
 Held-out results (leave-one-failure-out, stored in each model's `.json`):
@@ -339,6 +338,12 @@ GET /api/v1/users
 GET /api/v1/maintenance-schedules
 GET /api/v1/work-orders
 GET /api/v1/defects
+```
+
+## Testing
+
+```bash
+pytest tests/
 ```
 
 ## Next Build Targets

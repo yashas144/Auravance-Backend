@@ -252,7 +252,7 @@ def _fallback_response(
 
     evidence_sources = list(dict.fromkeys(item.source_path for item in evidence))
     if not evidence_sources:
-        evidence_sources = ["backend/knowledge/maintenance_playbook.md"]
+        evidence_sources = ["knowledge/maintenance_playbook.md"]
 
     if evidence:
         top = evidence[0]
@@ -309,7 +309,7 @@ class RagService:
         evidence = _build_evidence(matches)
         evidence_sources = list(dict.fromkeys(item.source_path for item in evidence))
         if not evidence_sources:
-            evidence_sources = ["backend/knowledge/maintenance_playbook.md"]
+            evidence_sources = ["knowledge/maintenance_playbook.md"]
 
         generation_payload = {
             "asset_id": payload.asset_id,
