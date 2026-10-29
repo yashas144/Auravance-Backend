@@ -1,0 +1,57 @@
+{
+  "artifact_schema_version": 1,
+  "profile": "motor",
+  "trained_at": "2026-10-21T17:59:37.320108+00:00",
+  "source_dataset": "ims_bearings/ims_features.csv",
+  "feature_names": [
+    "vibration"
+  ],
+  "runtime_profile": {
+    "vibration": {
+      "center": 0.08026,
+      "scale": 0.02185
+    }
+  },
+  "failures": [
+    "2003-11-25 23:39:56",
+    "2004-02-19 06:22:39",
+    "2004-04-18 02:42:55"
+  ],
+  "fold_dataset": "ims-bearings",
+  "evaluation": "leave-one-failure-out",
+  "task": "rul_regression",
+  "model_version": "rul-xgb-motor-v1.0.0",
+  "algorithm": "XGBRegressor",
+  "strategy": "degradation",
+  "target": "hours until the next failure, capped at 240h; 0 during a failure",
+  "target_unit": "hours",
+  "rul_cap_hours": 240.0,
+  "metrics": {
+    "loo_mae_hours": 56.15,
+    "constant_baseline_mae_hours": 62.4,
+    "loo_mean_prediction_hours_down": 153.6,
+    "loo_mean_prediction_hours_under_24h": 34.6,
+    "loo_mean_prediction_hours_24_to_72h": 144.7,
+    "loo_mean_prediction_hours_over_72h": 195.1,
+    "hgb_loo_mae_hours": 59.58,
+    "hgb_constant_baseline_mae_hours": 62.4,
+    "hgb_loo_mean_prediction_hours_down": 151.3,
+    "hgb_loo_mean_prediction_hours_under_24h": 32.8,
+    "hgb_loo_mean_prediction_hours_24_to_72h": 142.2,
+    "hgb_loo_mean_prediction_hours_over_72h": 189.6
+  },
+  "fold_held_out_ranges": [
+    [
+      "2003-10-22 12:06:24",
+      "2003-11-25 23:39:56"
+    ],
+    [
+      "2004-02-12 10:32:39",
+      "2004-02-19 06:22:39"
+    ],
+    [
+      "2004-03-04 09:27:46",
+      "2004-04-18 02:42:55"
+    ]
+  ]
+}

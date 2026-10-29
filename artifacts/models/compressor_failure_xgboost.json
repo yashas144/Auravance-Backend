@@ -1,0 +1,73 @@
+{
+  "artifact_schema_version": 1,
+  "profile": "compressor",
+  "trained_at": "2026-10-21T18:00:09.893704+00:00",
+  "source_dataset": "metropt3\\metropt3_5min.csv",
+  "feature_names": [
+    "temperature",
+    "pressure",
+    "current"
+  ],
+  "runtime_profile": {
+    "temperature": {
+      "center": 62.7333,
+      "scale": 8.9768
+    },
+    "pressure": {
+      "center": 8.9989,
+      "scale": 0.85845
+    },
+    "current": {
+      "center": 1.7496,
+      "scale": 3.7232
+    }
+  },
+  "failures": [
+    "2020-04-18 00:00:00",
+    "2020-05-29 23:30:00",
+    "2020-06-05 10:00:00",
+    "2020-07-15 14:30:00"
+  ],
+  "fold_dataset": "metropt-3",
+  "evaluation": "leave-one-failure-out",
+  "task": "failure_classification",
+  "model_version": "failure-xgb-compressor-v1.0.0",
+  "algorithm": "XGBClassifier",
+  "strategy": "sudden",
+  "target": "failure in progress now",
+  "notes": "Trained on replay episodes; 72h forecast needs the full processed CSV.",
+  "metrics": {
+    "loo_roc_auc": 0.9899,
+    "loo_average_precision": 0.9774,
+    "positive_rate": 0.3034,
+    "loo_mean_probability_down": 0.7892,
+    "loo_mean_probability_under_24h": 0.1077,
+    "loo_mean_probability_24_to_72h": 0.085,
+    "hgb_loo_roc_auc": 0.4497,
+    "hgb_loo_average_precision": 0.153,
+    "hgb_loo_failure_in_progress_roc_auc": 0.9595,
+    "hgb_positive_rate": 0.0812,
+    "hgb_loo_mean_probability_down": 0.3282,
+    "hgb_loo_mean_probability_under_24h": 0.0612,
+    "hgb_loo_mean_probability_24_to_72h": 0.0622,
+    "hgb_loo_mean_probability_over_72h": 0.0783
+  },
+  "fold_held_out_ranges": [
+    [
+      "2020-04-16 00:00:00",
+      "2020-04-19 11:55:00"
+    ],
+    [
+      "2020-05-27 23:30:00",
+      "2020-05-30 18:00:00"
+    ],
+    [
+      "2020-06-03 10:00:00",
+      "2020-06-07 14:15:00"
+    ],
+    [
+      "2020-07-13 14:40:00",
+      "2020-07-16 07:00:00"
+    ]
+  ]
+}

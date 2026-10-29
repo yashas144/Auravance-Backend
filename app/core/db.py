@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 from contextlib import closing
 from datetime import UTC, datetime
-from pathlib import Path
 
 from app.core.config import settings
+from app.core.database import DatabaseError, IntegrityConflict, get_connection, uses_postgres
+from app.core.postgres_schema import apply_schema
 from app.core.security import hash_password
 
 
@@ -420,29 +420,22 @@ DEMO_DEFECTS = [
 ]
 
 
-def _database_path() -> Path:
-    path = Path(settings.demo_db_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    return path
-
-
-def get_connection() -> sqlite3.Connection:
-    connection = sqlite3.connect(_database_path(), detect_types=sqlite3.PARSE_DECLTYPES)
-    connection.row_factory = sqlite3.Row
-    connection.execute("PRAGMA foreign_keys = ON")
-    return connection
-
-
-def _ensure_column(cursor: sqlite3.Cursor, table: str, column: str, definition: str) -> None:
-    existing = {row["name"] for row in cursor.execute(f"PRAGMA table_info({table})").fetchall()}
+def _ensure_column(connection, table: str, column: str, definition: str) -> None:
+    existing = {row["name"] for row in connection.execute(f"PRAGMA table_info({table})").fetchall()}
     if column not in existing:
-        cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+        connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
 def init_db() -> None:
+    if uses_postgres():
+        with closing(get_connection()) as connection:
+            apply_schema(connection)
+        seed_demo_assets()
+        seed_master_data()
+        return
+
     with closing(get_connection()) as connection:
-        cursor = connection.cursor()
-        cursor.executescript(
+        connection.executescript(
             """
             CREATE TABLE IF NOT EXISTS assets (
                 asset_id TEXT PRIMARY KEY,
@@ -644,11 +637,11 @@ def init_db() -> None:
             );
             """
         )
-        _ensure_column(cursor, "knowledge_chunks", "vector_json", "TEXT NOT NULL DEFAULT '{}'")
-        _ensure_column(cursor, "knowledge_chunks", "embedding_json", "TEXT NOT NULL DEFAULT '[]'")
-        _ensure_column(cursor, "users", "password_hash", "TEXT")
-        _ensure_column(cursor, "telemetry", "source", "TEXT")
-        _ensure_column(cursor, "telemetry", "source_context_json", "TEXT NOT NULL DEFAULT '{}'")
+        _ensure_column(connection, "knowledge_chunks", "vector_json", "TEXT NOT NULL DEFAULT '{}'")
+        _ensure_column(connection, "knowledge_chunks", "embedding_json", "TEXT NOT NULL DEFAULT '[]'")
+        _ensure_column(connection, "users", "password_hash", "TEXT")
+        _ensure_column(connection, "telemetry", "source", "TEXT")
+        _ensure_column(connection, "telemetry", "source_context_json", "TEXT NOT NULL DEFAULT '{}'")
         connection.commit()
     seed_demo_assets()
     seed_master_data()
@@ -658,8 +651,9 @@ def seed_demo_assets() -> None:
     with closing(get_connection()) as connection:
         connection.executemany(
             """
-            INSERT OR IGNORE INTO assets (asset_id, name, asset_type, plant_id, line_id)
+            INSERT INTO assets (asset_id, name, asset_type, plant_id, line_id)
             VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT DO NOTHING
             """,
             DEMO_ASSETS,
         )
@@ -670,76 +664,84 @@ def seed_master_data() -> None:
     with closing(get_connection()) as connection:
         connection.executemany(
             """
-            INSERT OR IGNORE INTO plants (
+            INSERT INTO plants (
                 plant_id, name, description, location, latitude, longitude, address, organization
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT DO NOTHING
             """,
             DEMO_PLANTS,
         )
         connection.executemany(
             """
-            INSERT OR IGNORE INTO vendors (
+            INSERT INTO vendors (
                 vendor_id, name, vendor_type, contact_person, email, phone, address, sla_level, status
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT DO NOTHING
             """,
             DEMO_VENDORS,
         )
         connection.executemany(
             """
-            INSERT OR IGNORE INTO equipment (
+            INSERT INTO equipment (
                 equipment_id, asset_id, equipment_number, name, model, category, description, plant_id,
                 area, status, manufacturer, serial_number, asset_tag, criticality, install_date,
                 commissioning_date, maintenance_strategy, warranty_expiry, vendor_id
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT DO NOTHING
             """,
             DEMO_EQUIPMENT,
         )
         connection.executemany(
             """
-            INSERT OR IGNORE INTO sensors (
+            INSERT INTO sensors (
                 sensor_id, equipment_id, tag, name, sensor_type, unit, location, is_critical
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT DO NOTHING
             """,
             DEMO_SENSORS,
         )
         connection.executemany(
             """
-            INSERT OR IGNORE INTO users (
+            INSERT INTO users (
                 user_id, full_name, email, role, plant_scope, status, last_login
             )
             VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT DO NOTHING
             """,
             DEMO_USERS,
         )
         connection.executemany(
             """
-            INSERT OR IGNORE INTO maintenance_schedules (
+            INSERT INTO maintenance_schedules (
                 schedule_id, asset_name, schedule_type, cadence, next_due, owner, status
             )
             VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT DO NOTHING
             """,
             DEMO_MAINTENANCE_SCHEDULES,
         )
         connection.executemany(
             """
-            INSERT OR IGNORE INTO work_orders (
+            INSERT INTO work_orders (
                 work_order_id, title, asset_name, priority, work_type, requested_by, assignee,
                 due_date, status, summary
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT DO NOTHING
             """,
             DEMO_WORK_ORDERS,
         )
         connection.executemany(
             """
-            INSERT OR IGNORE INTO defects (
+            INSERT INTO defects (
                 defect_id, asset_name, defect_code, severity, status, discovered_on, description, owner
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT DO NOTHING
             """,
             DEMO_DEFECTS,
         )

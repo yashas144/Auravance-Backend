@@ -33,6 +33,9 @@ class Settings:
         "AURAVANCE_DEMO_DB_PATH",
         str(BASE_DIR / "data" / "auravance_demo.db"),
     )
+    database_url: str = os.getenv("AURAVANCE_DATABASE_URL", "")
+    redis_url: str = os.getenv("AURAVANCE_REDIS_URL", "")
+    scoring_queue: str = os.getenv("AURAVANCE_SCORING_QUEUE", "auravance:score")
     simulator_interval_seconds: int = int(os.getenv("AURAVANCE_SIMULATOR_INTERVAL_SECONDS", "3"))
     model_registry_path: str = os.getenv(
         "AURAVANCE_MODEL_REGISTRY_PATH",
@@ -101,6 +104,18 @@ class Settings:
     # When set, telemetry ingest requires a matching X-Ingest-Key header.
     ingest_api_key: str = os.getenv("AURAVANCE_INGEST_API_KEY", "")
     alert_cooldown_seconds: int = int(os.getenv("AURAVANCE_ALERT_COOLDOWN_SECONDS", "300"))
+    mqtt_enabled: bool = os.getenv("AURAVANCE_MQTT_ENABLED", "true").lower() in {"1", "true", "yes"}
+    mqtt_embedded: bool = os.getenv("AURAVANCE_MQTT_EMBEDDED", "true").lower() in {"1", "true", "yes"}
+    mqtt_broker_host: str = os.getenv("AURAVANCE_MQTT_BROKER_HOST", "127.0.0.1")
+    mqtt_broker_port: int = int(os.getenv("AURAVANCE_MQTT_BROKER_PORT", "1883"))
+    mqtt_topic: str = os.getenv(
+        "AURAVANCE_MQTT_TOPIC",
+        "plants/+/lines/+/assets/+/telemetry",
+    )
+    mqtt_client_id: str = os.getenv("AURAVANCE_MQTT_CLIENT_ID", "auravance-ingest")
+    mqtt_username: str = os.getenv("AURAVANCE_MQTT_USERNAME", "")
+    mqtt_password: str = os.getenv("AURAVANCE_MQTT_PASSWORD", "")
+    sequence_window_size: int = int(os.getenv("AURAVANCE_SEQUENCE_WINDOW_SIZE", "12"))
 
 
 settings = Settings()

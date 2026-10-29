@@ -1,0 +1,97 @@
+{
+  "artifact_schema_version": 1,
+  "profile": "pump",
+  "trained_at": "2026-10-21T17:59:31.889185+00:00",
+  "source_dataset": "replay/pump_failure_episodes.csv",
+  "feature_names": [
+    "temperature",
+    "vibration",
+    "pressure",
+    "current"
+  ],
+  "runtime_profile": {
+    "temperature": {
+      "center": 70.0,
+      "scale": 8.0
+    },
+    "vibration": {
+      "center": 0.3,
+      "scale": 0.2
+    },
+    "pressure": {
+      "center": 5.0,
+      "scale": 0.8
+    },
+    "current": {
+      "center": 9.0,
+      "scale": 2.5
+    }
+  },
+  "failures": [
+    "2018-04-12 21:55:00",
+    "2018-04-18 00:30:00",
+    "2018-05-19 03:18:00",
+    "2018-05-25 00:30:00",
+    "2018-06-28 22:00:00",
+    "2018-07-08 00:11:00",
+    "2018-07-25 14:00:00"
+  ],
+  "fold_dataset": "kaggle-pump-sensor",
+  "evaluation": "leave-one-failure-out",
+  "task": "rul_regression",
+  "model_version": "rul-xgb-pump-v1.0.0",
+  "algorithm": "XGBRegressor",
+  "strategy": "degradation",
+  "target": "hours until the next failure, capped at 240h; 0 during a failure",
+  "target_unit": "hours",
+  "rul_cap_hours": 240.0,
+  "metrics": {
+    "loo_mae_hours": 10.72,
+    "constant_baseline_mae_hours": 11.75,
+    "loo_mean_prediction_hours_down": 6.2,
+    "loo_mean_prediction_hours_under_24h": 21.9,
+    "loo_mean_prediction_hours_24_to_72h": 20.9,
+    "hgb_loo_mae_hours": 64.46,
+    "hgb_constant_baseline_mae_hours": 80.57,
+    "hgb_loo_mean_prediction_hours_down": 22.0,
+    "hgb_actual_mean_hours_down": 0.0,
+    "hgb_loo_mean_prediction_hours_under_24h": 171.5,
+    "hgb_actual_mean_hours_under_24h": 12.0,
+    "hgb_loo_mean_prediction_hours_24_to_72h": 176.7,
+    "hgb_actual_mean_hours_24_to_72h": 48.0,
+    "hgb_loo_mean_prediction_hours_3_to_7d": 178.2,
+    "hgb_actual_mean_hours_3_to_7d": 114.7,
+    "hgb_loo_mean_prediction_hours_over_7d": 186.4,
+    "hgb_actual_mean_hours_over_7d": 235.3
+  },
+  "fold_held_out_ranges": [
+    [
+      "2018-04-11 09:55:00",
+      "2018-04-13 19:39:00"
+    ],
+    [
+      "2018-04-16 12:30:00",
+      "2018-04-20 10:20:00"
+    ],
+    [
+      "2018-05-17 15:18:00",
+      "2018-05-20 07:10:00"
+    ],
+    [
+      "2018-05-23 12:30:00",
+      "2018-05-25 16:35:00"
+    ],
+    [
+      "2018-06-27 10:00:00",
+      "2018-07-04 23:50:00"
+    ],
+    [
+      "2018-07-06 12:11:00",
+      "2018-07-08 06:52:00"
+    ],
+    [
+      "2018-07-24 02:00:00",
+      "2018-07-25 21:15:00"
+    ]
+  ]
+}

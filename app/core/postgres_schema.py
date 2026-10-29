@@ -1,0 +1,249 @@
+"""PostgreSQL DDL. Telemetry is a Timescale hypertable when the extension is available."""
+
+from __future__ import annotations
+
+import logging
+
+from app.core.database import DbConnection
+
+logger = logging.getLogger(__name__)
+
+TABLES = [
+    """
+    CREATE TABLE IF NOT EXISTS assets (
+        asset_id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        asset_type TEXT NOT NULL,
+        plant_id TEXT NOT NULL,
+        line_id TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS telemetry (
+        asset_id TEXT NOT NULL REFERENCES assets(asset_id),
+        timestamp TIMESTAMPTZ NOT NULL,
+        temperature_c DOUBLE PRECISION,
+        vibration_rms DOUBLE PRECISION,
+        pressure_bar DOUBLE PRECISION,
+        current_a DOUBLE PRECISION,
+        source TEXT,
+        source_context_json TEXT NOT NULL DEFAULT '{}'
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_telemetry_asset_timestamp
+        ON telemetry (asset_id, timestamp DESC)
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS alerts (
+        alert_id TEXT PRIMARY KEY,
+        asset_id TEXT NOT NULL REFERENCES assets(asset_id),
+        severity TEXT NOT NULL,
+        message TEXT NOT NULL,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS plants (
+        plant_id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL,
+        location TEXT NOT NULL,
+        latitude TEXT NOT NULL,
+        longitude TEXT NOT NULL,
+        address TEXT NOT NULL,
+        organization TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS vendors (
+        vendor_id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        vendor_type TEXT NOT NULL,
+        contact_person TEXT NOT NULL,
+        email TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        address TEXT NOT NULL,
+        sla_level TEXT NOT NULL,
+        status TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS equipment (
+        equipment_id TEXT PRIMARY KEY,
+        asset_id TEXT UNIQUE,
+        equipment_number TEXT NOT NULL,
+        name TEXT NOT NULL,
+        model TEXT NOT NULL,
+        category TEXT NOT NULL,
+        description TEXT NOT NULL,
+        plant_id TEXT NOT NULL REFERENCES plants(plant_id),
+        area TEXT NOT NULL,
+        status TEXT NOT NULL,
+        manufacturer TEXT NOT NULL,
+        serial_number TEXT NOT NULL,
+        asset_tag TEXT NOT NULL,
+        criticality TEXT NOT NULL,
+        install_date TEXT NOT NULL,
+        commissioning_date TEXT NOT NULL,
+        maintenance_strategy TEXT NOT NULL,
+        warranty_expiry TEXT NOT NULL,
+        vendor_id TEXT NOT NULL REFERENCES vendors(vendor_id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS sensors (
+        sensor_id TEXT PRIMARY KEY,
+        equipment_id TEXT NOT NULL REFERENCES equipment(equipment_id),
+        tag TEXT NOT NULL,
+        name TEXT NOT NULL,
+        sensor_type TEXT NOT NULL,
+        unit TEXT NOT NULL,
+        location TEXT NOT NULL,
+        is_critical INTEGER NOT NULL DEFAULT 0
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS users (
+        user_id TEXT PRIMARY KEY,
+        full_name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        role TEXT NOT NULL,
+        plant_scope TEXT NOT NULL,
+        status TEXT NOT NULL,
+        last_login TEXT NOT NULL,
+        password_hash TEXT
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS maintenance_schedules (
+        schedule_id TEXT PRIMARY KEY,
+        asset_name TEXT NOT NULL,
+        schedule_type TEXT NOT NULL,
+        cadence TEXT NOT NULL,
+        next_due TEXT NOT NULL,
+        owner TEXT NOT NULL,
+        status TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS work_orders (
+        work_order_id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        asset_name TEXT NOT NULL,
+        priority TEXT NOT NULL,
+        work_type TEXT NOT NULL,
+        requested_by TEXT NOT NULL,
+        assignee TEXT NOT NULL,
+        due_date TEXT NOT NULL,
+        status TEXT NOT NULL,
+        summary TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS defects (
+        defect_id TEXT PRIMARY KEY,
+        asset_name TEXT NOT NULL,
+        defect_code TEXT NOT NULL,
+        severity TEXT NOT NULL,
+        status TEXT NOT NULL,
+        discovered_on TEXT NOT NULL,
+        description TEXT NOT NULL,
+        owner TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS dataset_catalog (
+        dataset_id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        source TEXT NOT NULL,
+        raw_path TEXT NOT NULL,
+        extracted_path TEXT,
+        processed_path TEXT,
+        status TEXT NOT NULL,
+        record_count INTEGER NOT NULL DEFAULT 0,
+        notes TEXT,
+        last_synced_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS dataset_artifacts (
+        id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+        dataset_id TEXT NOT NULL REFERENCES dataset_catalog(dataset_id) ON DELETE CASCADE,
+        artifact_type TEXT NOT NULL,
+        file_path TEXT NOT NULL,
+        row_count INTEGER,
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS knowledge_documents (
+        document_id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        vendor TEXT NOT NULL,
+        source_type TEXT NOT NULL,
+        source_path TEXT NOT NULL UNIQUE,
+        processed_path TEXT NOT NULL,
+        chunk_path TEXT NOT NULL,
+        page_count INTEGER NOT NULL DEFAULT 0,
+        chunk_count INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL,
+        notes TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS knowledge_chunks (
+        id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+        document_id TEXT NOT NULL REFERENCES knowledge_documents(document_id) ON DELETE CASCADE,
+        chunk_index INTEGER NOT NULL,
+        content TEXT NOT NULL,
+        token_count INTEGER NOT NULL DEFAULT 0,
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        vector_json TEXT NOT NULL DEFAULT '{}',
+        embedding_json TEXT NOT NULL DEFAULT '[]'
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS knowledge_corpus_stats (
+        token TEXT PRIMARY KEY,
+        document_frequency INTEGER NOT NULL,
+        idf DOUBLE PRECISION NOT NULL,
+        chunk_count INTEGER NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+]
+
+
+def apply_schema(connection: DbConnection) -> None:
+    for statement in TABLES:
+        connection.execute(statement)
+    _promote_telemetry_hypertable(connection)
+    connection.commit()
+
+
+def _promote_telemetry_hypertable(connection: DbConnection) -> None:
+    try:
+        connection.execute("CREATE EXTENSION IF NOT EXISTS timescaledb")
+        connection.execute(
+            """
+            SELECT create_hypertable(
+                'telemetry',
+                'timestamp',
+                if_not_exists => TRUE,
+                migrate_data => TRUE
+            )
+            """
+        )
+        connection.commit()
+        logger.info("telemetry is a Timescale hypertable.")
+    except Exception as exc:
+        connection.rollback()
+        logger.warning(
+            "Timescale hypertable not created; using a regular PostgreSQL telemetry table. %s",
+            exc,
+        )

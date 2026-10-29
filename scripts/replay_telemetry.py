@@ -30,6 +30,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
+from app.ingestion.mqtt_protocol import build_telemetry_topic  # noqa: E402
 from app.ingestion.replay import (  # noqa: E402
     DATASETS,
     ChannelMapping,
@@ -94,6 +95,23 @@ def parse_args() -> argparse.Namespace:
         help="With --assets all, how often to re-check the asset list.",
     )
     parser.add_argument("--ticks", type=int, default=0, help="Stop after this many ticks (default: run forever).")
+    parser.add_argument(
+        "--transport",
+        choices=("rest", "mqtt"),
+        default=os.getenv("AURAVANCE_REPLAY_TRANSPORT", "rest"),
+        help="Publish via REST ingest/batch (default) or MQTT. MQTT still uses REST to discover assets.",
+    )
+    parser.add_argument(
+        "--mqtt-host",
+        default=os.getenv("AURAVANCE_MQTT_BROKER_HOST", "127.0.0.1"),
+        help="MQTT broker host (env AURAVANCE_MQTT_BROKER_HOST).",
+    )
+    parser.add_argument(
+        "--mqtt-port",
+        type=int,
+        default=int(os.getenv("AURAVANCE_MQTT_BROKER_PORT", "1883")),
+        help="MQTT broker port (env AURAVANCE_MQTT_BROKER_PORT).",
+    )
     return parser.parse_args()
 
 
@@ -113,6 +131,29 @@ def _request(url: str, ingest_key: str, payload: dict | None = None) -> object:
         if exc.code in FATAL_STATUSES:
             raise FatalIngestError(exc.code, f"HTTP {exc.code} from {url}: {detail}") from exc
         raise
+
+
+def connect_mqtt_publisher(host: str, port: int, ingest_key: str):
+    import paho.mqtt.client as mqtt
+
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="auravance-replay", protocol=mqtt.MQTTv311)
+    if ingest_key:
+        client.username_pw_set("ingest", ingest_key)
+    client.connect(host, port, keepalive=30)
+    client.loop_start()
+    return client
+
+
+def publish_mqtt(client, payloads: list[tuple[dict, ReplayRow]], targets: dict[str, dict]) -> None:
+    for payload, _row in payloads:
+        target = targets.get(payload["asset_id"], {})
+        topic = build_telemetry_topic(
+            target.get("plant_id") or "plant-local",
+            target.get("line_id") or "line-1",
+            payload["asset_id"],
+        )
+        info = client.publish(topic, json.dumps(payload), qos=0)
+        info.wait_for_publish(timeout=5)
 
 
 def request_with_retry(url: str, ingest_key: str, payload: dict | None = None) -> object:
@@ -227,11 +268,18 @@ def main() -> None:
             if missing:
                 raise FatalIngestError(404, f"Unknown asset(s): {', '.join(missing)}")
             targets = [target for target in targets if target["asset_id"] in fixed_assets]
+        target_by_id.clear()
+        target_by_id.update({target["asset_id"]: target for target in targets})
         streams.sync(targets)
 
     batch_url = f"{api_url}/telemetry/ingest/batch"
+    mqtt_client = None
+    target_by_id: dict[str, dict] = {}
     try:
         refresh_assets()
+        if args.transport == "mqtt":
+            mqtt_client = connect_mqtt_publisher(args.mqtt_host, args.mqtt_port, args.ingest_key)
+            print(f"Publishing telemetry to MQTT {args.mqtt_host}:{args.mqtt_port}.", flush=True)
         last_refresh = time.monotonic()
         tick = 0
         while args.ticks <= 0 or tick < args.ticks:
@@ -246,7 +294,11 @@ def main() -> None:
 
             payloads = streams.next_payloads(datetime.now(timezone.utc).isoformat())
             try:
-                request_with_retry(batch_url, args.ingest_key, {"readings": [payload for payload, _ in payloads]})
+                if args.transport == "mqtt":
+                    assert mqtt_client is not None
+                    publish_mqtt(mqtt_client, payloads, target_by_id)
+                else:
+                    request_with_retry(batch_url, args.ingest_key, {"readings": [payload for payload, _ in payloads]})
             except FatalIngestError as exc:
                 if exc.status == 404 and discover_assets:
                     # An asset was deleted since the last refresh; resync and carry on.
@@ -265,6 +317,10 @@ def main() -> None:
         sys.exit(f"Stopping: {exc}")
     except KeyboardInterrupt:
         print("Replay stopped.")
+    finally:
+        if mqtt_client is not None:
+            mqtt_client.loop_stop()
+            mqtt_client.disconnect()
 
 
 if __name__ == "__main__":

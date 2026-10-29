@@ -7,11 +7,36 @@ The React dashboard lives in the sibling repo `auravance-frontend`. This API alr
 ## Run
 
 ```bash
-pip install -e .
-uvicorn app.main:app --reload
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[sequence]"
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
 ```
 
 Copy `.env.example` to `.env` and set `OPENAI_API_KEY` if you want live RAG. The dashboard repo talks to `/api/v1` on this process.
+
+### Postgres + Timescale, Mosquitto, scoring worker
+
+SQLite, the in-process MQTT broker, and inline ingest scoring still work with no Docker. To use the platform store and an external broker:
+
+```bash
+docker compose up -d
+```
+
+Set in `.env`:
+
+```
+AURAVANCE_DATABASE_URL=postgresql://auravance:auravance@127.0.0.1:5433/auravance
+AURAVANCE_MQTT_EMBEDDED=false
+AURAVANCE_REDIS_URL=redis://127.0.0.1:6379/0
+```
+
+Then start uvicorn as above and, in a second terminal, the ingest scoring worker:
+
+```bash
+.\.venv\Scripts\python.exe -m app.workers.scoring_worker
+```
+
+Telemetry still lands through `telemetry_service` (REST or MQTT topic `plants/{plant_id}/lines/{line_id}/assets/{asset_id}/telemetry`). Compose Mosquitto is a single real broker, not a multi-node HA cluster. `GET /api/v1/health` reports `storage` (`sqlite` or `postgresql`) and `scoring` (`inline` or `worker`). Backups are not part of this stack.
 
 ## Demo Flow
 
@@ -92,12 +117,15 @@ for `AURAVANCE_ALERT_COOLDOWN_SECONDS` (default 300) unless the severity changes
 
 ## Current Scope
 
-- FastAPI application setup
-- SQLite-backed assets, telemetry, and alerts
-- SQLite-backed dataset catalog and artifact registry
-- Trained Isolation Forest anomaly scoring with a safe rules fallback
-- Diagnostics service with sample knowledge references
-- Simulated telemetry generator for asset demo flows
+- FastAPI `/api/v1` with JWT dashboard auth and `X-Ingest-Key` ingest auth
+- SQLite-backed assets, telemetry, alerts, master data, and knowledge index
+- REST ingest plus a local MQTT subscriber (embedded broker by default)
+- Isolation Forest anomaly models; XGBoost failure/RUL when trained, else HistGradientBoosting; rules fallback
+- LSTM sequence failure models when the optional `sequence` extra is installed and artifacts exist
+- RAG diagnostics over manuals/guides (OpenAI embeddings or TF-IDF, playbook fallback)
+- Replay of Kaggle pump, MetroPT-3, and NASA/IMS datasets already in `data/replay/`
+
+TimescaleDB, pgvector, and a measured 30% detection-accuracy claim are not in this local tree.
 
 ## Dataset Preparation
 
@@ -343,12 +371,29 @@ GET /api/v1/defects
 ## Testing
 
 ```bash
-pytest tests/
+.\.venv\Scripts\python.exe -m pytest tests/
 ```
+
+## Local MQTT, XGBoost, and LSTM
+
+REST ingest stays the default. MQTT is an additional producer into the same `telemetry_service`.
+
+```bash
+.\.venv\Scripts\python.exe -m pip install -e ".[sequence]"
+.\.venv\Scripts\python.exe scripts/train_northstar_models.py
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+.\.venv\Scripts\python.exe scripts/replay_telemetry.py --transport mqtt --ticks 20
+```
+
+- `GET /api/v1/telemetry/ingest/status` reports whether the MQTT subscriber is connected.
+- `GET /api/v1/predictions/models/status` lists Isolation Forest, tabular (XGBoost when present), and LSTM per equipment profile.
+- `scripts/evaluate_detection_delta.py` writes `artifacts/models/detection_delta.json` with rules-vs-model ROC-AUC. Pump beats a weak rules baseline by more than 30% on replay detection; compressor is about +20%; motor is too sparse for that claim. Do not treat this as a product-wide 30% accuracy improvement.
+
+If PyTorch is not installed, skip the extra and LSTM falls back to tabular models.
 
 ## Next Build Targets
 
-1. Add chart-friendly dashboard endpoints and summary KPIs.
-2. Train the RUL model on NASA C-MAPSS and connect it to prediction responses.
-3. Validate anomaly thresholds against real Auravance equipment telemetry.
+1. Move telemetry to PostgreSQL/TimescaleDB when MQTT volume needs it.
+2. Store RAG embeddings in pgvector while keeping the retrieve contract.
+3. Add chart-friendly dashboard endpoints and summary KPIs.
 4. Add model drift monitoring and scheduled retraining.

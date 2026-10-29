@@ -10,12 +10,12 @@ skids are pump loops, so they use the pump profile.
 
 from __future__ import annotations
 
-import sqlite3
+import json
 from contextlib import closing
 from pathlib import Path
 
 from app.core.config import settings
-from app.core.db import get_connection
+from app.core.db import DatabaseError, get_connection
 
 
 DEFAULT_PROFILE = "pump"
@@ -43,21 +43,45 @@ def profile_for_asset(asset_id: str) -> str:
     try:
         with closing(get_connection()) as connection:
             row = connection.execute("SELECT asset_type FROM assets WHERE asset_id = ?", (asset_id,)).fetchone()
-    except sqlite3.Error:
+    except DatabaseError:
         return DEFAULT_PROFILE
     return profile_for_asset_type(row["asset_type"] if row else None)
 
 
+def _usable_tabular(preferred: Path, fallback: Path) -> Path:
+    if not preferred.exists():
+        return fallback
+    sidecar = preferred.with_suffix(".json")
+    if not sidecar.exists():
+        return preferred
+    try:
+        metrics = json.loads(sidecar.read_text(encoding="utf-8")).get("metrics", {})
+    except (OSError, json.JSONDecodeError):
+        return fallback
+    if metrics.get("loo_roc_auc") is None and metrics.get("loo_mae_hours") is None:
+        return fallback
+    return preferred
+
+
 def artifact_paths(profile: str) -> dict[str, Path]:
-    if profile == "pump":
-        return {
-            "anomaly": Path(settings.anomaly_model_path),
-            "failure": Path(settings.failure_model_path),
-            "rul": Path(settings.rul_model_path),
-        }
     registry = Path(settings.model_registry_path)
+    if profile == "pump":
+        hgb_failure = Path(settings.failure_model_path)
+        hgb_rul = Path(settings.rul_model_path)
+        xgb_failure = registry / "failure_xgboost.joblib"
+        xgb_rul = registry / "rul_xgboost.joblib"
+        sequence = registry / "failure_lstm.joblib"
+        anomaly = Path(settings.anomaly_model_path)
+    else:
+        hgb_failure = registry / f"{profile}_failure_gradient_boosting.joblib"
+        hgb_rul = registry / f"{profile}_rul_gradient_boosting.joblib"
+        xgb_failure = registry / f"{profile}_failure_xgboost.joblib"
+        xgb_rul = registry / f"{profile}_rul_xgboost.joblib"
+        sequence = registry / f"{profile}_failure_lstm.joblib"
+        anomaly = registry / f"{profile}_anomaly_isolation_forest.joblib"
     return {
-        "anomaly": registry / f"{profile}_anomaly_isolation_forest.joblib",
-        "failure": registry / f"{profile}_failure_gradient_boosting.joblib",
-        "rul": registry / f"{profile}_rul_gradient_boosting.joblib",
+        "anomaly": anomaly,
+        "failure": _usable_tabular(xgb_failure, hgb_failure),
+        "rul": _usable_tabular(xgb_rul, hgb_rul),
+        "sequence": sequence,
     }

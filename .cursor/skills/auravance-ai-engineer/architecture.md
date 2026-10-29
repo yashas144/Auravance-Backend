@@ -8,21 +8,21 @@ Read this when changing APIs, storage, ingest, or deploy. Keep
 
 ```
 simulate_telemetry.py / replay_telemetry.py
-        │  POST /api/v1/telemetry/ingest[/batch]
+        │  REST ingest  or  MQTT plants/{plant}/lines/{line}/assets/{asset}/telemetry
         ▼
-   FastAPI (app/main.py)
+   FastAPI (app/main.py)  persist only
         │
-        ├─ SQLite  data/auravance_demo.db
-        ├─ score_asset() → Isolation Forest + HGB (+ rules fallback)
+        ├─ PostgreSQL + Timescale (AURAVANCE_DATABASE_URL)  or  SQLite WAL
+        ├─ Redis list auravance:score  →  scoring_worker  (or inline if no Redis)
+        ├─ score_asset() → Isolation Forest + XGBoost/HGB + LSTM (+ rules fallback)
         ├─ alerts (cooldown)
         └─ rag_service.root_cause() → knowledge chunks + OpenAI or playbook
                 ▲
         auravance-frontend (React App.jsx, Vite proxy /api → :8000)
 ```
 
-Target topology (not yet built): sensors → MQTT broker → ingestion service →
-stream features → TimescaleDB → XGBoost/LSTM/Isolation Forest → alerts → RAG
-over pgvector. See `docs/backend-architecture.md`.
+MQTT broker: compose Mosquitto when `AURAVANCE_MQTT_EMBEDDED=false`, else in-process.
+Still pending: pgvector, HA MQTT cluster, 1M+/day. See `docs/backend-architecture.md`.
 
 ## Telemetry contract
 
@@ -95,10 +95,11 @@ User JWT: `Authorization: Bearer`. Ingest: `X-Ingest-Key` when
 
 ## Storage
 
-SQLite at `AURAVANCE_DEMO_DB_PATH` (default `data/auravance_demo.db`).
-`init_db()` seeds demo plants, assets, vendors, equipment, users. Do not treat
-the committed DB as a schema migration tool — change `app/core/db.py` DDL and
-seed data together.
+`AURAVANCE_DATABASE_URL` selects PostgreSQL (Timescale hypertable on `telemetry`
+when the extension loads). Otherwise SQLite at `AURAVANCE_DEMO_DB_PATH`
+(default `data/auravance_demo.db`). `init_db()` seeds demo plants, assets,
+vendors, equipment, users. Schema lives in `app/core/db.py` (SQLite) and
+`app/core/postgres_schema.py`. Backups are not implemented.
 
 ## Config (`app/core/config.py`)
 
@@ -119,10 +120,11 @@ Terraform under `terraform/`: Cloud Run backend, Firebase Hosting frontend,
 Secret Manager, Artifact Registry. Follow `terraform/README-DEPLOY.md`. Free-tier
 demo, not the MQTT/Timescale production design.
 
-## Target MQTT (when implementing)
+## MQTT subscriber
 
 Topic: `plants/{plant_id}/lines/{line_id}/assets/{asset_id}/telemetry`
 
-Subscriber responsibilities: validate, normalize timestamps/units/keys, persist
-raw telemetry, call `telemetry_service.ingest` / `ingest_batch`. Keep REST ingest
-for the simulator and replay.
+Subscriber (`app/ingestion/mqtt.py`) validates, normalizes, and calls
+`telemetry_service.ingest`. Point it at compose Mosquitto with
+`AURAVANCE_MQTT_EMBEDDED=false`. Keep REST ingest for the simulator and replay.
+A multi-node HA cluster is still operator-owned.

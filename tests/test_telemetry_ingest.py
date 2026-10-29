@@ -23,12 +23,27 @@ def _payload(asset_id: str = "pump-04", **extra) -> dict:
 class TelemetryIngestTests(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
-        self._original = (settings.demo_db_path, settings.ingest_api_key)
+        self._original = (
+            settings.demo_db_path,
+            settings.database_url,
+            settings.redis_url,
+            settings.ingest_api_key,
+            settings.mqtt_enabled,
+        )
         settings.demo_db_path = str(Path(self._tmp.name) / "test.db")
+        settings.database_url = ""
+        settings.redis_url = ""
         settings.ingest_api_key = ""
+        settings.mqtt_enabled = False
 
     def tearDown(self) -> None:
-        settings.demo_db_path, settings.ingest_api_key = self._original
+        (
+            settings.demo_db_path,
+            settings.database_url,
+            settings.redis_url,
+            settings.ingest_api_key,
+            settings.mqtt_enabled,
+        ) = self._original
         self._tmp.cleanup()
 
     def _login(self, client: TestClient) -> dict:

@@ -10,7 +10,6 @@ from app.services.anomaly import anomaly_model_service
 from app.services.auth import auth_service
 from app.services.model_registry import MODELS
 from app.services.prediction import prediction_service
-from app.services.prognostics import failure_model_service, rul_model_service
 
 router = APIRouter()
 
@@ -26,12 +25,19 @@ def get_anomaly_model_status(
 def get_prediction_models_status(
     _: AuthenticatedUserResponse = Depends(auth_service.get_current_user),
 ) -> PredictionModelsStatusResponse:
+    pump = MODELS["pump"]
     return PredictionModelsStatusResponse(
         anomaly=anomaly_model_service.status(),
-        failure=failure_model_service.status(),
-        rul=rul_model_service.status(),
+        failure=pump.failure.status(),
+        rul=pump.rul.status(),
+        sequence=pump.sequence.status(),
         profiles={
-            profile: {"anomaly": models.anomaly.status(), "failure": models.failure.status(), "rul": models.rul.status()}
+            profile: {
+                "anomaly": models.anomaly.status(),
+                "failure": models.failure.status(),
+                "rul": models.rul.status(),
+                "sequence": models.sequence.status(),
+            }
             for profile, models in MODELS.items()
         },
     )

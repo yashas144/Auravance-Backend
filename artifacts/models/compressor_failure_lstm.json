@@ -1,0 +1,64 @@
+{
+  "artifact_schema_version": 1,
+  "task": "failure_sequence",
+  "profile": "compressor",
+  "model_version": "failure-lstm-compressor-v1.0.0",
+  "algorithm": "LSTM",
+  "strategy": "sudden",
+  "trained_at": "2026-10-21T18:01:52.637029+00:00",
+  "source_dataset": "metropt3\\metropt3_5min.csv",
+  "feature_names": [
+    "temperature",
+    "pressure",
+    "current"
+  ],
+  "runtime_profile": {
+    "temperature": {
+      "center": 62.7333,
+      "scale": 8.9768
+    },
+    "pressure": {
+      "center": 8.9989,
+      "scale": 0.85845
+    },
+    "current": {
+      "center": 1.7496,
+      "scale": 3.7232
+    }
+  },
+  "fold_dataset": "metropt-3",
+  "window_size": 12,
+  "hidden_size": 16,
+  "num_layers": 1,
+  "metrics": {
+    "loo_roc_auc": 0.9578,
+    "loo_average_precision": 0.8992,
+    "positive_rate": 0.2932,
+    "window_size": 12,
+    "windows": 1129
+  },
+  "failures": [
+    "2020-04-18 00:00:00",
+    "2020-05-29 23:30:00",
+    "2020-06-05 10:00:00",
+    "2020-07-15 14:30:00"
+  ],
+  "fold_held_out_ranges": [
+    [
+      "2020-04-16 00:00:00",
+      "2020-04-19 11:50:00"
+    ],
+    [
+      "2020-05-27 23:30:00",
+      "2020-05-30 18:00:00"
+    ],
+    [
+      "2020-06-03 10:00:00",
+      "2020-06-07 14:05:00"
+    ],
+    [
+      "2020-07-13 14:40:00",
+      "2020-07-16 06:55:00"
+    ]
+  ]
+}

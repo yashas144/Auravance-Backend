@@ -36,11 +36,11 @@ a description of the current tree unless the matching code exists.
 | Capability | In this repo today | Target |
 |---|---|---|
 | Full-stack monitoring | FastAPI `/api/v1`; dashboard is `auravance-frontend` | Same, production-hardened |
-| Failure / RUL models | sklearn `HistGradientBoosting*` per equipment profile; Isolation Forest anomalies; rules fallback | XGBoost tabular scoring + LSTM sequence models |
-| MQTT IoT ingest | Not implemented. REST `POST /telemetry/ingest` and `/ingest/batch` | MQTT broker + Python subscriber, topic `plants/{plant_id}/lines/{line_id}/assets/{asset_id}/telemetry` |
-| ETL / high volume | Offline scripts over Kaggle pump, MetroPT-3, NASA/IMS; SQLite demo DB | Event-driven pipeline, 1M+ records/day, sub-minute latency, TimescaleDB |
+| Failure / RUL models | Isolation Forest; XGBoost tabular if artifacts exist else `HistGradientBoosting*`; LSTM sequence beside tabular; rules fallback | Same algorithms, production-hardened serving |
+| MQTT IoT ingest | REST ingest plus MQTT subscriber on `plants/{plant_id}/lines/{line_id}/assets/{asset_id}/telemetry`; compose Mosquitto when `AURAVANCE_MQTT_EMBEDDED=false`, else in-process broker | HA MQTT cluster (EMQX/HiveMQ), same subscriber contract |
+| ETL / high volume | Offline scripts over Kaggle pump, MetroPT-3, NASA/IMS; PostgreSQL + Timescale hypertable when `AURAVANCE_DATABASE_URL` is set, else SQLite WAL | 1M+ records/day, sub-minute latency, retention policies |
 | RAG diagnostics | OpenAI embeddings + TF-IDF retrieval over manuals/guides; local playbook fallback | Same contract, stronger index (pgvector) |
-| Accuracy claims | Honest leave-one-failure-out metrics in model JSON; no coded "30%" baseline | Publish a measured baseline-vs-model delta before claiming 30% |
+| Accuracy claims | `scripts/evaluate_detection_delta.py` writes rules-vs-model ROC-AUC; do not claim 30% unless measured | Publish a measured baseline-vs-model delta before claiming 30% |
 
 Never write code comments or API docs that imply MQTT, XGBoost, or LSTM are
 live until they are.
@@ -95,8 +95,9 @@ Python `>=3.11`. Deps live in `pyproject.toml`. Dashboard: sibling
 - **Typed schemas first.** Change `app/models/schemas.py`, then services,
   routes, then tests. Tell the user if `auravance-frontend` callers need a
   matching change.
-- **SQLite is the demo store.** Production direction is PostgreSQL +
-  TimescaleDB + pgvector (`docs/backend-architecture.md`).
+- **PostgreSQL + Timescale** when `AURAVANCE_DATABASE_URL` is set
+  (`docker compose up -d`). SQLite WAL remains the no-Docker / pytest store.
+  pgvector is still the RAG target, not the live index.
 
 ## Implementation workflow
 
@@ -124,7 +125,7 @@ uvicorn app.main:app --reload
 1. Keep REST ingest working; add MQTT as an additional producer into the same service.
 2. Swap or add XGBoost behind the existing artifact schema (`artifact_schema_version: 1`).
 3. Add LSTM only after windowed sequence features exist; serve it beside tabular models.
-4. Move telemetry to TimescaleDB once MQTT volume needs it.
+4. PostgreSQL + Timescale via `AURAVANCE_DATABASE_URL` (compose). Pull ingest scoring off the API process with Redis + `app.workers.scoring_worker`.
 5. Measure detection accuracy against the current baseline **before** claiming a 30% improvement.
 
 ## Additional resources

@@ -295,7 +295,8 @@ class PredictionModelsStatusResponse(BaseModel):
     anomaly: AnomalyModelStatusResponse
     failure: AnomalyModelStatusResponse
     rul: AnomalyModelStatusResponse
-    # Every equipment profile (pump, compressor, motor) with its three models.
+    sequence: AnomalyModelStatusResponse | None = None
+    # Every equipment profile (pump, compressor, motor) with its models.
     profiles: dict[str, dict[str, AnomalyModelStatusResponse]] = Field(default_factory=dict)
 
 
@@ -303,6 +304,20 @@ class IngestTargetResponse(BaseModel):
     asset_id: str
     asset_type: str
     profile: str
+    plant_id: str | None = None
+    line_id: str | None = None
+
+
+class MqttIngestStatusResponse(BaseModel):
+    enabled: bool
+    connected: bool
+    embedded_broker: bool
+    broker_host: str
+    broker_port: int
+    topic: str
+    messages_accepted: int = 0
+    messages_rejected: int = 0
+    detail: str
 
 
 class DiagnosticRequest(BaseModel):

@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import re
-import sqlite3
 from contextlib import closing
 from uuid import uuid4
 
-from app.core.db import get_connection
+from app.core.db import IntegrityConflict, get_connection
 from app.models.schemas import (
     DefectResponse,
     DefectUpsert,
@@ -55,7 +54,7 @@ class MasterDataService:
     def _execute_write(operation):
         try:
             return operation()
-        except sqlite3.IntegrityError as error:
+        except IntegrityConflict as error:
             raise ValueError(str(error)) from error
 
     def list_plants(self) -> list[PlantResponse]:
