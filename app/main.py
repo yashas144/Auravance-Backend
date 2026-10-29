@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.router import api_router
 from app.core.config import settings
 from app.core.db import init_db
+from app.ingestion.mqtt import start_mqtt, stop_mqtt
 
 
 def _ignore_windows_connection_reset(loop: asyncio.AbstractEventLoop) -> None:
@@ -35,7 +36,11 @@ async def lifespan(_: FastAPI):
     if sys.platform == "win32":
         _ignore_windows_connection_reset(asyncio.get_running_loop())
     init_db()
-    yield
+    start_mqtt()
+    try:
+        yield
+    finally:
+        stop_mqtt()
 
 
 def create_app() -> FastAPI:

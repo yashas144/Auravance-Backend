@@ -1,0 +1,71 @@
+{
+  "artifact_schema_version": 1,
+  "profile": "compressor",
+  "trained_at": "2026-10-21T18:00:09.893704+00:00",
+  "source_dataset": "metropt3\\metropt3_5min.csv",
+  "feature_names": [
+    "temperature",
+    "pressure",
+    "current"
+  ],
+  "runtime_profile": {
+    "temperature": {
+      "center": 62.7333,
+      "scale": 8.9768
+    },
+    "pressure": {
+      "center": 8.9989,
+      "scale": 0.85845
+    },
+    "current": {
+      "center": 1.7496,
+      "scale": 3.7232
+    }
+  },
+  "failures": [
+    "2020-04-18 00:00:00",
+    "2020-05-29 23:30:00",
+    "2020-06-05 10:00:00",
+    "2020-07-15 14:30:00"
+  ],
+  "fold_dataset": "metropt-3",
+  "evaluation": "leave-one-failure-out",
+  "task": "rul_regression",
+  "model_version": "rul-xgb-compressor-v1.0.0",
+  "algorithm": "XGBClassifier",
+  "strategy": "sudden",
+  "target": "hours until the next failure, capped at 240h; 0 during a failure",
+  "target_unit": "hours",
+  "rul_cap_hours": 240.0,
+  "metrics": {
+    "loo_mae_hours": 10.67,
+    "constant_baseline_mae_hours": 14.92,
+    "loo_mean_prediction_hours_down": 5.4,
+    "loo_mean_prediction_hours_under_24h": 23.5,
+    "loo_mean_prediction_hours_24_to_72h": 23.7,
+    "hgb_loo_mae_hours": 44.12,
+    "hgb_constant_baseline_mae_hours": 44.19,
+    "hgb_loo_mean_prediction_hours_down": 156.1,
+    "hgb_loo_mean_prediction_hours_under_24h": 218.1,
+    "hgb_loo_mean_prediction_hours_24_to_72h": 217.7,
+    "hgb_loo_mean_prediction_hours_over_72h": 212.9
+  },
+  "fold_held_out_ranges": [
+    [
+      "2020-04-16 00:00:00",
+      "2020-04-19 11:55:00"
+    ],
+    [
+      "2020-05-27 23:30:00",
+      "2020-05-30 18:00:00"
+    ],
+    [
+      "2020-06-03 10:00:00",
+      "2020-06-07 14:15:00"
+    ],
+    [
+      "2020-07-13 14:40:00",
+      "2020-07-16 07:00:00"
+    ]
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "evaluated_at": "2026-10-21T18:06:08.479755+00:00",
+  "definition": "ROC-AUC for ranking currently-failed replay rows above healthy rows",
+  "baseline": "rules scorer in app.services.scoring.rules_anomaly_and_failure",
+  "note": "Pump beats a weak rules baseline by more than 30% on this replay detection task because the rules scorer uses absolute thresholds on anonymized pump channels. Compressor is +20%. Motor has too few failed snapshots after downsampling for a 30% claim. Do not treat this as a product-wide 30% accuracy improvement.",
+  "profiles": {
+    "pump": {
+      "profile": "pump",
+      "rows": 4269,
+      "positive_rate": 0.1719,
+      "rules_roc_auc": 0.2003,
+      "isolation_forest_roc_auc": 0.8725,
+      "tabular_algorithm": "XGBClassifier",
+      "tabular_roc_auc": 0.9884,
+      "tabular_vs_rules_pct": 393.46,
+      "lstm_loaded": true,
+      "lstm_rows": 4192,
+      "lstm_roc_auc": 0.9664,
+      "lstm_vs_rules_pct": 382.48,
+      "meets_30pct_north_star": true
+    },
+    "compressor": {
+      "profile": "compressor",
+      "rows": 692,
+      "positive_rate": 0.2934,
+      "rules_roc_auc": 0.8283,
+      "isolation_forest_roc_auc": 0.9896,
+      "tabular_algorithm": "XGBClassifier",
+      "tabular_roc_auc": 0.9922,
+      "tabular_vs_rules_pct": 19.79,
+      "lstm_loaded": true,
+      "lstm_rows": 648,
+      "lstm_roc_auc": 0.867,
+      "lstm_vs_rules_pct": 4.67,
+      "meets_30pct_north_star": false
+    },
+    "motor": {
+      "profile": "motor",
+      "rows": 392,
+      "positive_rate": 0.0077,
+      "rules_roc_auc": 0.8929,
+      "isolation_forest_roc_auc": 0.6859,
+      "tabular_algorithm": "XGBClassifier",
+      "tabular_roc_auc": 0.4464,
+      "tabular_vs_rules_pct": -50.01,
+      "lstm_loaded": true,
+      "lstm_rows": 359,
+      "lstm_roc_auc": 0.7032,
+      "lstm_vs_rules_pct": -21.25,
+      "meets_30pct_north_star": false
+    }
+  }
+}

@@ -22,7 +22,7 @@ class RulInference:
     model_version: str
 
 
-def _runtime_features(
+def runtime_features(
     latest: TelemetryRecord,
     runtime_profile: dict[str, dict[str, float]],
     feature_names: list[str] = FEATURE_NAMES,
@@ -132,7 +132,7 @@ class FailureModelService(_ArtifactService):
         artifact = self._load()
         if artifact is None:
             return None
-        features = _runtime_features(
+        features = runtime_features(
             telemetry[-1], artifact.get("runtime_profile", RUNTIME_PROFILE), artifact["feature_names"]
         )
         estimator, model_version = _select_estimator(artifact, telemetry[-1])
@@ -151,7 +151,7 @@ class RulModelService(_ArtifactService):
         artifact = self._load()
         if artifact is None:
             return None
-        features = _runtime_features(
+        features = runtime_features(
             telemetry[-1], artifact.get("runtime_profile", RUNTIME_PROFILE), artifact["feature_names"]
         )
         estimator, model_version = _select_estimator(artifact, telemetry[-1])

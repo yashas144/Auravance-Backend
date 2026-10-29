@@ -1,0 +1,49 @@
+{
+  "artifact_schema_version": 1,
+  "task": "failure_sequence",
+  "profile": "motor",
+  "model_version": "failure-lstm-motor-v1.0.0",
+  "algorithm": "LSTM",
+  "strategy": "degradation",
+  "trained_at": "2026-10-21T18:02:05.685878+00:00",
+  "source_dataset": "ims_bearings/ims_features.csv",
+  "feature_names": [
+    "vibration"
+  ],
+  "runtime_profile": {
+    "vibration": {
+      "center": 0.08026,
+      "scale": 0.02185
+    }
+  },
+  "fold_dataset": "ims-bearings",
+  "window_size": 12,
+  "hidden_size": 16,
+  "num_layers": 1,
+  "metrics": {
+    "loo_roc_auc": 0.6139,
+    "loo_average_precision": 0.3634,
+    "positive_rate": 0.1183,
+    "window_size": 12,
+    "windows": 3145
+  },
+  "failures": [
+    "2003-11-25 23:39:56",
+    "2004-02-19 06:22:39",
+    "2004-04-18 02:42:55"
+  ],
+  "fold_held_out_ranges": [
+    [
+      "2003-10-22 12:06:24",
+      "2003-11-25 23:19:56"
+    ],
+    [
+      "2004-02-12 10:32:39",
+      "2004-02-19 06:22:39"
+    ],
+    [
+      "2004-03-04 09:27:46",
+      "2004-04-18 02:42:55"
+    ]
+  ]
+}

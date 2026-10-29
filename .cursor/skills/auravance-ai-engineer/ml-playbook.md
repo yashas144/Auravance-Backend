@@ -19,9 +19,11 @@ compressor sudden-failure wrappers are the allowed exception).
 | pump failure / RUL | `HistGradientBoostingClassifier` / `Regressor` | `train_failure_model.py`, `train_rul_model.py` |
 | compressor, motor | same family, per-profile | `train_profile_models.py compressor\|motor` |
 
-README lists XGBoost and LSTM as the stack. They are **not** in
-`pyproject.toml` and are **not** served. Adding them is an upgrade,
-not a rename of the current HGB models.
+XGBoost is a runtime dependency and is served when `*_xgboost.joblib`
+artifacts exist; otherwise HistGradientBoosting artifacts stay in front.
+LSTM is optional (`pip install -e ".[sequence]"`) and served beside
+tabular models when `*_failure_lstm.joblib` is present. Do not describe
+LSTM as live if torch or the sequence artifact is missing.
 
 Shared feature transform: four channels, `runtime_profile` center/scale stored
 in the artifact so live telemetry matches training. Pump channels are

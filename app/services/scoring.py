@@ -24,6 +24,24 @@ def _trend_bonus(values: list[float]) -> float:
     return min(0.2, rising_steps / max(1, len(values) - 1) * 0.2)
 
 
+def rules_anomaly_and_failure(telemetry: list[TelemetryRecord]) -> tuple[float, float]:
+    latest = telemetry[-1]
+    temp_score = _normalize(latest.temperature_c, 70.0, 95.0)
+    vibration_score = _normalize(latest.vibration_rms, 0.45, 1.2)
+    pressure_score = _normalize(abs((latest.pressure_bar or 0.0) - 5.0), 0.4, 2.0)
+    current_score = _normalize(latest.current_a, 9.0, 16.0)
+    anomaly_score = min(
+        1.0,
+        temp_score * 0.3 + vibration_score * 0.35 + pressure_score * 0.15 + current_score * 0.2,
+    )
+    temp_trend = _trend_bonus([point.temperature_c for point in telemetry if point.temperature_c is not None])
+    vibration_trend = _trend_bonus(
+        [point.vibration_rms for point in telemetry if point.vibration_rms is not None]
+    )
+    failure_probability = min(0.98, 0.1 + anomaly_score * 0.7 + temp_trend + vibration_trend)
+    return anomaly_score, failure_probability
+
+
 def score_asset(asset_id: str, telemetry: list[TelemetryRecord], profile: str | None = None) -> PredictionResponse:
     models = models_for(profile or profile_for_asset(asset_id))
     latest = telemetry[-1]
@@ -32,22 +50,15 @@ def score_asset(asset_id: str, telemetry: list[TelemetryRecord], profile: str | 
     pressure_score = _normalize(abs((latest.pressure_bar or 0.0) - 5.0), 0.4, 2.0)
     current_score = _normalize(latest.current_a, 9.0, 16.0)
 
-    rules_anomaly_score = min(
-        1.0,
-        temp_score * 0.3 + vibration_score * 0.35 + pressure_score * 0.15 + current_score * 0.2,
-    )
+    rules_anomaly_score, rules_failure_probability = rules_anomaly_and_failure(telemetry)
     model_inference = models.anomaly.predict(telemetry)
     anomaly_score = model_inference.score if model_inference else rules_anomaly_score
-    temp_trend = _trend_bonus([point.temperature_c for point in telemetry if point.temperature_c is not None])
-    vibration_trend = _trend_bonus(
-        [point.vibration_rms for point in telemetry if point.vibration_rms is not None]
-    )
-    rules_failure_probability = min(
-        0.98, 0.1 + anomaly_score * 0.7 + temp_trend + vibration_trend
-    )
     failure_inference = models.failure.predict(telemetry)
+    sequence_inference = models.sequence.predict(telemetry)
     failure_probability = (
-        failure_inference.probability if failure_inference else rules_failure_probability
+        sequence_inference.probability
+        if sequence_inference
+        else failure_inference.probability if failure_inference else rules_failure_probability
     )
     rules_rul_hours = max(12.0, round(240.0 * (1.0 - failure_probability), 1))
     rul_inference = models.rul.predict(telemetry)
@@ -93,6 +104,10 @@ def score_asset(asset_id: str, telemetry: list[TelemetryRecord], profile: str | 
         model_version=model_version,
         dominant_signal=dominant_signal,
         anomaly_model_version=model_version,
-        failure_model_version=(failure_inference.model_version if failure_inference else None),
+        failure_model_version=(
+            sequence_inference.model_version
+            if sequence_inference
+            else failure_inference.model_version if failure_inference else None
+        ),
         rul_model_version=(rul_inference.model_version if rul_inference else None),
     )

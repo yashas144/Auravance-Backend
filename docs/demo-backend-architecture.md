@@ -1,77 +1,39 @@
 # Auravance Demo Backend Architecture
 
-## Why Simplify
-
-For the demo phase, the goal is to prove the product experience, not build production infrastructure. We do not need real sensors, MQTT, streaming systems, or deployed ML pipelines yet.
+Local demo stack in this repo. Production MQTT/Timescale/pgvector remains in
+`docs/backend-architecture.md`.
 
 ## Demo Architecture
 
 ```mermaid
 flowchart LR
-    A["Telemetry Simulator"] --> B["FastAPI Ingestion API"]
-    B --> C["SQLite"]
-    C --> D["Rule-Based Prediction Service"]
+    A["Replay / simulator"] -->|"REST or MQTT"| B["FastAPI ingest"]
+    B --> C["Postgres+Timescale or SQLite"]
+    C --> D["Isolation Forest + XGBoost/HGB + LSTM"]
     D --> E["Alerts"]
-    D --> F["Diagnostics Service"]
-    G["Sample Manuals"] --> F
-    H["Frontend Dashboard"] --> B
+    D --> F["RAG diagnostics"]
+    G["Manuals / guides"] --> F
+    H["Frontend dashboard"] --> B
     H --> D
     H --> E
     H --> F
 ```
 
-## Components
+## What is running locally
 
-### 1. Telemetry Simulator
+- FastAPI `/api/v1` with JWT reads/writes and `X-Ingest-Key` ingest
+- PostgreSQL + Timescale when `AURAVANCE_DATABASE_URL` is set (`docker compose`); else SQLite at `data/auravance_demo.db`
+- REST `POST /telemetry/ingest` and `/ingest/batch`
+- MQTT subscriber on `plants/{plant_id}/lines/{line_id}/assets/{asset_id}/telemetry` (compose Mosquitto or embedded broker for tests)
+- Ingest scoring on a Redis worker when `AURAVANCE_REDIS_URL` is set; otherwise inline
+- Isolation Forest anomalies; XGBoost tabular failure/RUL when artifacts exist, else HistGradientBoosting; rules fallback
+- LSTM sequence failure scoring when PyTorch and sequence artifacts are present
+- RAG over manuals/guides with OpenAI or TF-IDF and a playbook fallback
+- Replay datasets in `data/replay/` (Kaggle pump, MetroPT-3, NASA/IMS)
 
-- A Python script sends fake sensor readings every few seconds.
-- We simulate healthy and failing behavior for a few demo assets.
-- This replaces real sensor hardware during the MVP.
+## Deliberately still pending
 
-### 2. FastAPI Backend
-
-- Receives telemetry through a normal REST endpoint.
-- Exposes APIs for assets, telemetry history, predictions, alerts, and diagnostics.
-- Keeps the project easy to run locally.
-
-### 3. SQLite Storage
-
-- Stores assets, telemetry, and generated alerts.
-- Good enough for a demo and removes infrastructure overhead.
-
-### 4. Rule-Based Prediction Engine
-
-- Produces anomaly score, failure probability, and estimated RUL from simple thresholds and recent trends.
-- This lets the application behave intelligently before trained models are added.
-
-### 5. Diagnostics Layer
-
-- Maps the dominant signal pattern to likely causes and recommended actions.
-- Uses sample knowledge files to mimic the explainability layer we will later replace with real RAG.
-
-## What We Are Deliberately Skipping
-
-- MQTT
-- Real-time stream processors
-- Kubernetes or microservices
-- Model training pipeline
-- Production auth and tenancy
-- Vector database
-
-## MVP Build Order
-
-1. Simulated telemetry
-2. Telemetry storage
-3. Prediction scoring
-4. Alerts
-5. Diagnostics
-6. Frontend dashboard
-
-## Upgrade Path Later
-
-Once the demo works well, we can replace parts without changing the product story:
-
-- simulator -> MQTT or real edge devices
-- SQLite -> PostgreSQL and TimescaleDB
-- rules -> XGBoost, LSTM, Isolation Forest
-- file-based diagnostics -> RAG over manuals and work orders
+- pgvector
+- HA MQTT cluster (compose ships one Mosquitto, not EMQX/HiveMQ)
+- 1M+ records/day and retention policies
+- A 30% detection-accuracy claim (measure first with `scripts/evaluate_detection_delta.py`)

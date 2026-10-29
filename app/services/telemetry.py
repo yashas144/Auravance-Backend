@@ -9,6 +9,7 @@ from fastapi import HTTPException
 
 from app.core.config import settings
 from app.core.db import get_connection
+from app.services.scoring_jobs import schedule_ingest_scoring
 from app.models.schemas import (
     IngestTargetResponse,
     TelemetryBatchIngestRequest,
@@ -35,7 +36,7 @@ def _row_to_record(row) -> TelemetryRecord:
 class TelemetryService:
     def ingest(self, payload: TelemetryIngestRequest) -> TelemetryIngestResponse:
         self._store([payload])
-        self._maybe_create_alert(payload.asset_id)
+        schedule_ingest_scoring(payload.asset_id)
         return TelemetryIngestResponse(
             status="accepted",
             asset_id=payload.asset_id,
@@ -46,7 +47,7 @@ class TelemetryService:
         self._store(payload.readings)
         asset_ids = list(dict.fromkeys(reading.asset_id for reading in payload.readings))
         for asset_id in asset_ids:
-            self._maybe_create_alert(asset_id)
+            schedule_ingest_scoring(asset_id)
         return TelemetryBatchIngestResponse(
             status="accepted",
             accepted=len(payload.readings),
@@ -56,12 +57,16 @@ class TelemetryService:
 
     def list_ingest_targets(self) -> list[IngestTargetResponse]:
         with closing(get_connection()) as connection:
-            rows = connection.execute("SELECT asset_id, asset_type FROM assets ORDER BY asset_id").fetchall()
+            rows = connection.execute(
+                "SELECT asset_id, asset_type, plant_id, line_id FROM assets ORDER BY asset_id"
+            ).fetchall()
         return [
             IngestTargetResponse(
                 asset_id=row["asset_id"],
                 asset_type=row["asset_type"],
                 profile=profile_for_asset_type(row["asset_type"]),
+                plant_id=row["plant_id"],
+                line_id=row["line_id"],
             )
             for row in rows
         ]
@@ -138,7 +143,7 @@ class TelemetryService:
         records = [_row_to_record(row) for row in rows]
         return list(reversed(records))
 
-    def _maybe_create_alert(self, asset_id: str) -> None:
+    def score_ingest_alerts(self, asset_id: str) -> None:
         history = self.get_history(asset_id, limit=8)
         if len(history) < 3:
             return

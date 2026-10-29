@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.security import require_ingest_key
+from app.ingestion.mqtt import mqtt_status
 from app.models.schemas import (
     AuthenticatedUserResponse,
     IngestTargetResponse,
+    MqttIngestStatusResponse,
     TelemetryBatchIngestRequest,
     TelemetryBatchIngestResponse,
     TelemetryIngestRequest,
@@ -30,6 +32,12 @@ def ingest_telemetry_batch(payload: TelemetryBatchIngestRequest) -> TelemetryBat
 def list_ingest_targets() -> list[IngestTargetResponse]:
     """Asset ids that ingestion clients may stream to; guarded by the ingest key, not a user login."""
     return telemetry_service.list_ingest_targets()
+
+
+@router.get("/ingest/status", response_model=MqttIngestStatusResponse, dependencies=[Depends(require_ingest_key)])
+def get_ingest_status() -> MqttIngestStatusResponse:
+    """MQTT subscriber status. REST ingest stays available even if MQTT is down."""
+    return mqtt_status()
 
 
 @router.get("/assets/{asset_id}/latest", response_model=TelemetryRecord)
